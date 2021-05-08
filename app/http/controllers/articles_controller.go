@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"database/sql"
 	"fmt"
 	"goblog/app/models/article"
 	"goblog/pkg/logger"
@@ -168,7 +167,7 @@ func (*ArticlesController) Edit(w http.ResponseWriter, r *http.Request) {
 
 	// 3. 如果出现错误
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			// 3.1 数据未找到
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprint(w, "404 文章未找到")
@@ -205,7 +204,7 @@ func (*ArticlesController) Update(w http.ResponseWriter, r *http.Request) {
 
 	// 3. 错误处理
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprint(w, "404 文章未找到")
 		} else {
@@ -255,6 +254,45 @@ func (*ArticlesController) Update(w http.ResponseWriter, r *http.Request) {
 			logger.LogError(err)
 
 			tmpl.Execute(w, data)
+		}
+	}
+}
+
+// Delete 删除文章
+func (*ArticlesController) Delete(w http.ResponseWriter, r *http.Request) {
+
+	// 1. 获取 URL 参数
+	id := route.GetRouteVariable("id", r)
+
+	// 2. 读取对应的文章数据
+	_article, err := article.Get(id)
+
+	// 3. 如果出现错误
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprint(w, "404 文章未找到")
+		} else {
+			logger.LogError(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, "500 服务器内部错误")
+		}
+	} else {
+		// 4. 未出现错误，执行删除操作
+		rowsAffected, err := _article.Delete()
+
+		// 4.1 发生错误
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, "500 服务器内部错误")
+		} else {
+			if rowsAffected > 0 {
+				indexURL := route.Name2URL("articles.index")
+				http.Redirect(w, r, indexURL, http.StatusFound)
+			} else {
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprint(w, "404 文章未找到")
+			}
 		}
 	}
 }
